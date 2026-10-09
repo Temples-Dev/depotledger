@@ -1,14 +1,14 @@
-# Stockflow Domain Model
+# depotledger — Domain Model
 
-* **Status:** Proposed
-* **Version:** 0.1
-* **Product:** Stockflow — Inventory & Fulfilment Platform
+* **Status:** Approved
+* **Version:** 1.0
+* **Product:** depotledger — Inventory and Fulfilment Platform
 
 ## 1. Purpose
 
-This document defines Stockflow's core business concepts, their responsibilities, and the rules governing how they interact. It serves as the domain-level reference for backend modules, API design, database design, and testing.
+This document defines depotledger's core business concepts, their responsibilities, and the rules governing how they interact. It serves as the domain-level reference for backend modules, API design, database design, and testing.
 
-Stockflow targets wholesale and distribution businesses operating multiple warehouses. Orders may be created by staff or submitted through external integrations.
+depotledger targets wholesale and distribution businesses operating multiple warehouses. Orders may be created by staff or submitted through external integrations.
 
 ## 2. Scope
 
@@ -56,13 +56,13 @@ Stockflow targets wholesale and distribution businesses operating multiple wareh
 
 The initial deployment represents one company with multiple warehouses.
 
-An organization record may hold company-level configuration, including company details and reporting currency. However, version one does not require cross-company tenant isolation.
+Store company-level configuration, including company details and reporting currency, in the organization record. Exclude cross-company tenant isolation from version one.
 
 ### 4.2 Product
 
-A product represents an item the company buys, stores, or sells.
+Define a product as an item the company buys, stores, or sells.
 
-Important attributes include:
+Include the following attributes:
 
 * SKU, unique within the company
 * Name and description
@@ -72,21 +72,21 @@ Important attributes include:
 * Active or archived state
 * Optional default sales price and purchasing reference cost
 
-Products referenced by historical transactions must be archived rather than hard-deleted.
+Archive products referenced by historical transactions. Never hard-delete them.
 
-**Unit policy:** Each product has one base unit of measure. Fractional quantities are permitted only for products explicitly configured to support them. Unit conversion must not happen implicitly.
+**Unit policy:** Give each product one base unit of measure. Permit fractional quantities only for explicitly configured products. Never convert units implicitly.
 
 ### 4.3 Warehouse and storage location
 
-A warehouse represents a physical or operational stock-holding site.
+Define a warehouse as a physical or operational stock-holding site.
 
-A storage location represents an optional subdivision within a warehouse, such as a bin, shelf, receiving area, quarantine area, or dispatch area.
+Define a storage location as a subdivision within a warehouse: bin, shelf, receiving area, quarantine area, or dispatch area.
 
-Every storage location belongs to exactly one warehouse. A warehouse may use a designated default location when bin-level tracking is unnecessary.
+Every storage location belongs to exactly one warehouse. Designate a default location for warehouses that skip bin-level tracking.
 
 ### 4.4 Stock balance
 
-A stock balance represents the current quantity of a product at a specific warehouse, location, and stock-status bucket.
+Record the current quantity of a product at a warehouse, location, and stock-status bucket in a stock balance.
 
 * **On-hand quantity:** Physical quantity recorded in that bucket.
 * **Reserved quantity:** Sellable on-hand quantity committed to active reservations.
@@ -94,11 +94,11 @@ A stock balance represents the current quantity of a product at a specific wareh
 * **Backordered quantity:** Demand that has not yet been allocated. It is not inventory and is not reserved.
 * **In-transit quantity:** Quantity dispatched from one warehouse but not yet accepted at its destination.
 
-Damaged and quarantined quantities are not sellable. They must be represented through explicit stock statuses or an equivalent model that excludes them from availability calculations.
+Exclude damaged and quarantined quantities from sellable stock. Represent them through explicit stock statuses that remove them from availability calculations.
 
 ### 4.5 Stock movement
 
-A stock movement is an immutable record of a physical stock change.
+Append a stock movement as the immutable record of every physical stock change.
 
 Examples include:
 
@@ -111,21 +111,21 @@ Examples include:
 * Posting an authorized inventory adjustment
 * Correcting an earlier movement through a compensating movement
 
-Each movement records the product, affected stock bucket, signed quantity change, movement type, source reference, timestamp, and applicable actor or system identity.
+Record product, affected stock bucket, signed quantity change, movement type, source reference, timestamp, and actor or system identity in every movement.
 
-**Important distinction:** A reservation changes availability, not physical on-hand quantity. Reservation creation and release should be recorded in reservation events or a dedicated reservation ledger rather than being misrepresented as physical stock movements.
+**Important distinction:** A reservation changes availability, never physical on-hand quantity. Record reservation creation and release in reservation events or the reservation ledger. Never misrepresent them as physical stock movements.
 
 ### 4.6 Reservation and allocation
 
-A reservation commits available stock to an order line for a limited period.
+Commit available stock to an order line through a reservation. Enforce the reservation lifecycle below.
 
-* A reservation may be partially allocated.
+* Allocate a reservation partially where the policy permits.
 * An allocation identifies the specific stock balance and quantity committed.
-* A reservation may draw from multiple locations when permitted by the allocation policy.
-* The default reservation expiry is 24 hours after creation.
-* Expiry releases only quantities that remain actively reserved.
-* Expiry does not automatically cancel the order.
-* A reservation may be consumed, released, expired, or cancelled.
+* Draw a reservation from multiple locations only where the allocation policy permits.
+* Expire reservations 24 hours after creation by default.
+* Release only actively reserved quantities on expiry.
+* Keep the order open on reservation expiry.
+* Close a reservation only through consume, release, expiry, or cancel transitions.
 
 A backorder represents the portion of an order line that has not been allocated. It is demand awaiting stock, not reserved inventory.
 
@@ -133,31 +133,31 @@ A backorder represents the portion of an order line that has not been allocated.
 
 Customers place sales orders. Suppliers provide products and receive purchase orders.
 
-Customer and supplier records referenced by historical transactions must be archived rather than deleted.
+Archive customer and supplier records referenced by historical transactions. Never delete them.
 
 ### 4.8 Purchase order and goods receipt
 
-A purchase order records intended purchases from a supplier. It may be received in multiple deliveries.
+Record intended supplier purchases in a purchase order. Receive it across multiple deliveries where needed.
 
-A goods receipt records the quantities physically received and classifies them as:
+Classify physically received quantities in every goods receipt as:
 
 * Accepted
 * Damaged or quarantined
 * Rejected
 
-Only accepted quantities enter sellable stock. Damaged quantities enter a non-sellable stock bucket. Rejected goods do not enter stock unless a controlled quarantine workflow explicitly records them.
+Move only accepted quantities into sellable stock. Move damaged quantities into a non-sellable stock bucket. Keep rejected goods out of stock unless a controlled quarantine workflow records them.
 
-Over-receipt is rejected by default unless an authorized policy permits it.
+Reject over-receipt by default. Accept it only under an authorized policy.
 
 Receipt submission must be idempotent. Replaying the same receipt request must not add stock twice.
 
 ### 4.9 Sales order and order line
 
-An order records customer demand and its source, either staff-created or externally submitted. The authenticated staff member or integration identity is recorded as the creator.
+Record customer demand, its source, and its creator in every order. Set the creator from the authenticated staff member or integration identity.
 
-Each order line records the product, ordered quantity, price, currency, fulfilled quantity, cancelled quantity, and allocation information.
+Record product, ordered quantity, price, currency, fulfilled quantity, cancelled quantity, and allocation information in every order line.
 
-Prices and currencies are snapshotted when the order is submitted. Subsequent catalogue price changes must not alter historical orders.
+Snapshot prices and currencies at order submission. Never let later catalogue price changes alter historical orders.
 
 For each order line:
 
@@ -167,23 +167,23 @@ For each order line:
 
 Allocated-but-unfulfilled quantity remains operationally outstanding, but it is not backordered.
 
-These quantities may be derived from authoritative records or maintained as transactional projections. Avoid independently mutable duplicate quantities unless there is a demonstrated performance need and reconciliation tests protect their correctness.
+Derive these quantities from authoritative records or maintain them as transactional projections. Prohibit independently mutable duplicate quantities without a demonstrated performance need and protecting reconciliation tests.
 
 ### 4.10 Picking, shipment, and delivery
 
-Picking identifies quantities collected from stock. Packing prepares them for dispatch. A shipment records dispatched quantities and subsequent delivery updates.
+Collect quantities from stock through picking. Prepare them through packing. Record dispatched quantities and delivery updates in a shipment.
 
-Dispatch must not exceed the quantity authorized for fulfilment.
+Reject dispatch exceeding the quantity authorized for fulfilment.
 
-The default physical stock deduction point is dispatch confirmation, not pick-list creation. Dispatching the same shipment twice must not deduct stock twice.
+Deduct physical stock at dispatch confirmation, never at pick-list creation. Reject duplicate dispatch deductions for the same shipment.
 
-Order state and shipment state are separate. A sales order may be fulfilled through multiple partial shipments.
+Track order state and shipment state separately. Fulfil a sales order through multiple partial shipments where needed.
 
 ### 4.11 Inter-warehouse transfer
 
-A transfer moves stock from a source warehouse to a destination warehouse.
+Move stock from a source warehouse to a destination warehouse through a transfer.
 
-Suggested lifecycle:
+Lifecycle:
 
 1. Requested or drafted
 2. Approved
@@ -192,25 +192,25 @@ Suggested lifecycle:
 5. Partially or fully received at destination
 6. Closed after discrepancies are resolved or recorded
 
-At dispatch, source stock decreases and the dispatched quantity becomes in transit. At destination receipt, accepted quantity enters destination stock.
+Decrease source stock and move the dispatched quantity into transit at dispatch. Move accepted quantity into destination stock at receipt.
 
-The destination must not show transferred goods as available before receipt. Shortages, damage, and missing quantities must be recorded explicitly.
+Hide transferred goods from destination availability before receipt. Record shortages, damage, and missing quantities explicitly.
 
 ### 4.12 Returns and adjustments
 
-Customer returns require inspection before their stock disposition is decided. Returned goods may enter sellable, damaged, or quarantine stock.
+Inspect customer returns before deciding their stock disposition. Returned goods may enter sellable, damaged, or quarantine stock.
 
-A return does not automatically imply a refund; financial settlement is outside the initial inventory scope.
+Process returns without implying a refund. Financial settlement stays outside the initial inventory scope.
 
-Inventory adjustments require an authorized reason and actor. Corrections must preserve the original history through compensating movements.
+Require an authorized reason and actor for every inventory adjustment. Preserve original history through compensating movements.
 
 ### 4.13 Identity, integrations, and audit
 
-Users receive roles and permissions. Warehouse-scoped permissions limit which warehouses and locations a user can operate on.
+Assign roles and permissions to users. Restrict each user to authorized warehouses and locations through warehouse-scoped permissions.
 
-External integrations use separate credentials and explicit permissions.
+Issue separate credentials with explicit permissions to external integrations.
 
-Audit events record the actor, action, timestamp, affected resource, correlation identifier, and relevant change details. Credentials, tokens, and other secrets must never be copied into audit payloads.
+Record actor, action, timestamp, affected resource, correlation identifier, and relevant change details in every audit event. Never copy credentials, tokens, or secrets into audit payloads.
 
 ## 5. Module ownership
 
@@ -226,15 +226,15 @@ Audit events record the actor, action, timestamp, affected resource, correlation
 | Identity and access | Users, roles, permissions, integration clients | Trust client-side authorization                 |
 | Audit and reporting | Audit events and read models                   | Mutate historical transactions                  |
 
-Modules may call each other's application services through explicit interfaces. Avoid circular dependencies and hidden business operations in model signals.
+Call other modules' application services only through explicit interfaces. Eliminate circular dependencies and hidden business operations in model signals.
 
 ## 6. State machines
 
-Use explicit transition functions rather than arbitrary status updates.
+Implement explicit transition functions. Reject arbitrary status updates.
 
 ### Sales order
 
-Suggested states:
+States:
 
 * `draft`
 * `submitted`
@@ -245,7 +245,7 @@ Suggested states:
 * `cancelled`
 * `rejected`
 
-A backordered order may remain confirmed or partially fulfilled while waiting for stock. Avoid a single `backordered` order status when an order can contain allocated, backordered, and fulfilled quantities simultaneously.
+A backordered order remains confirmed or partially fulfilled while waiting for stock. Never use a single `backordered` order status when an order can contain allocated, backordered, and fulfilled quantities simultaneously.
 
 ### Reservation
 
@@ -256,7 +256,7 @@ A backordered order may remain confirmed or partially fulfilled while waiting fo
 * `expired`
 * `cancelled`
 
-Transitions must be transactional and idempotent.
+Execute transitions transactionally and idempotently.
 
 ### Purchase order
 
@@ -276,7 +276,7 @@ Transitions must be transactional and idempotent.
 * `delivered`
 * `cancelled`
 
-A dispatched shipment must not be cancelled as though the goods never left the warehouse. Use a return or explicit reversal workflow instead.
+Never cancel a dispatched shipment as though the goods never left the warehouse. Run a return or explicit reversal workflow instead.
 
 ### Transfer
 
@@ -288,13 +288,13 @@ A dispatched shipment must not be cancelled as though the goods never left the w
 * `closed`
 * `cancelled`
 
-A transfer may be cancelled only before dispatch. After dispatch, use a controlled resolution or reversal process.
+Cancel a transfer only before dispatch. After dispatch, run a controlled resolution or reversal process.
 
-Exact transition rules must be implemented and tested in domain services.
+Implement and test exact transition rules in domain services.
 
 ## 7. Backorder allocation policy
 
-Recommended initial policy:
+Initial policy:
 
 1. Allocate newly available stock to the oldest eligible backorder first, using creation time and a stable identifier as tie-breakers.
 2. Allocate only from the warehouse selected for the order.
@@ -303,7 +303,7 @@ Recommended initial policy:
 5. Require an explicit permission and audit reason for any staff override of priority.
 6. Never silently change an order's selected warehouse to satisfy a backorder.
 
-Whether allocation is fully automatic or requires staff approval remains a product decision. Encapsulate the policy so it can change without rewriting the inventory ledger.
+Encapsulate the allocation policy so it switches between automatic and staff-approved without rewriting the inventory ledger.
 
 ## 8. Currency and pricing
 

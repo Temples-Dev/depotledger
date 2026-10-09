@@ -1,16 +1,16 @@
-# Stockflow Database Design
+# depotledger — Database Design
 
-* **Status:** Proposed
-* **Version:** 0.1
+* **Status:** Approved
+* **Version:** 1.0
 * **Database:** PostgreSQL
 * **Backend:** Django REST Framework
 * **Architecture:** Modular monolith
 
 ## 1. Purpose
 
-This document defines Stockflow's proposed relational schema, important constraints, indexes, and persistence rules.
+This document defines depotledger's relational schema, important constraints, indexes, and persistence rules.
 
-It is a logical design, not a final migration specification. Field types, Django model definitions, and constraints should be validated during implementation.
+It is a logical design, not a final migration specification. Field types, Django model definitions, and constraints must be validated during implementation.
 
 ## 2. General conventions
 
@@ -27,13 +27,13 @@ It is a logical design, not a final migration specification. Field types, Django
 
 ## 3. Schema overview
 
-The proposed tables are grouped by domain.
+The tables are grouped by domain.
 
 ### 3.1 Company configuration and catalogue
 
 #### `organizations`
 
-Suggested fields:
+Fields:
 
 * `id` — UUID primary key
 * `name`
@@ -42,7 +42,7 @@ Suggested fields:
 * `created_at`
 * `updated_at`
 
-V1 represents one company. Keeping an organization record does not mean the application is already safe for multi-tenant operation.
+V1 represents one company. An organization record does not make the application safe for multi-tenant operation.
 
 #### `currencies`
 
@@ -88,7 +88,7 @@ Preserve the exchange-rate snapshot used for a transaction. Historical totals mu
 * `created_at`
 * `updated_at`
 
-SKU uniqueness is company-wide in v1. Avoid reusing archived SKUs if doing so could make historical documents or external references ambiguous.
+Keep SKU uniqueness company-wide in v1. Never reuse an archived SKU when reuse makes historical documents or external references ambiguous.
 
 #### `product_barcodes`
 
@@ -118,7 +118,7 @@ SKU uniqueness is company-wide in v1. Avoid reusing archived SKUs if doing so co
 * `is_active`
 * Unique constraint on `(warehouse_id, code)`
 
-Every location belongs to exactly one warehouse. If a warehouse-level default location is required, model it explicitly instead of using a nullable location to mean several different things.
+Assign every location to exactly one warehouse. Model a warehouse-level default location explicitly instead of overloading a nullable location.
 
 #### `customers`
 
@@ -148,7 +148,7 @@ Every location belongs to exactly one warehouse. If a warehouse-level default lo
 
 Represents current quantity for a product/warehouse/location/status bucket.
 
-Suggested fields:
+Fields:
 
 * `id` — UUID primary key
 * `product_id` — foreign key
@@ -166,24 +166,24 @@ Constraints and rules:
 * `on_hand_qty >= 0`.
 * `reserved_qty >= 0`.
 * For reservable stock buckets, `reserved_qty <= on_hand_qty`.
-* Reservations may target only eligible sellable stock.
+* Target only eligible sellable stock with reservations.
 * Non-sellable stock statuses are excluded from available-to-promise calculations.
 * A location must belong to the same warehouse recorded on the balance.
-* Use stable balance rows where practical so concurrent operations can lock them reliably.
+* Use stable balance rows so concurrent operations lock them reliably.
 
 For sellable stock:
 
 `available_qty = on_hand_qty - reserved_qty`
 
-Calculate availability from the authoritative quantities rather than maintaining a separately mutable `available_qty` field.
+Calculate availability from the authoritative quantities. Do not maintain a separately mutable `available_qty` field.
 
-In-transit stock needs special care. It is operationally distinct from stock physically present at a warehouse. It may be represented through dedicated in-transit balances linked to a transfer or through explicit transfer-in-transit records. Choose one authoritative representation and prevent the same quantity from being counted in both.
+Treat in-transit stock as operationally distinct from stock physically present at a warehouse. Use one authoritative representation — dedicated in-transit balances linked to a transfer or explicit transfer-in-transit records — and prevent double-counting.
 
 #### `stock_movements`
 
 Append-only records of physical stock changes.
 
-Suggested fields:
+Fields:
 
 * `id` — UUID primary key
 * `product_id` — foreign key
@@ -193,7 +193,7 @@ Suggested fields:
 * `quantity_delta` — `NUMERIC`, non-zero
 * `movement_type`
 * `reference_type`
-* `reference_id`, or a typed foreign key where practical
+* `reference_id`, or a typed foreign key
 * `reason_code` — nullable
 * `notes` — nullable
 * `actor_user_id` — nullable foreign key
@@ -210,7 +210,7 @@ Rules:
 * Every movement must be traceable to a receipt, shipment, transfer, return, or adjustment.
 * Use a unique source-operation key where possible to prevent duplicate posting.
 
-Do not represent a reservation as a physical stock movement. Reservation activity changes availability, not physical on-hand quantity.
+Never represent a reservation as a physical stock movement. Reservation activity changes availability, not physical on-hand quantity.
 
 #### `stock_reservations`
 
@@ -226,9 +226,9 @@ Do not represent a reservation as a physical stock movement. Reservation activit
 * `created_at`
 * `updated_at`
 
-Define and validate the quantity invariant. For example, consumed plus released quantity must never exceed allocated quantity.
+Enforce the quantity invariant: consumed plus released quantity never exceeds allocated quantity.
 
-Requested quantity may exceed allocated quantity when the order is backordered. Decide whether a reservation record represents the overall request or an individual reservation attempt; keep that meaning consistent.
+Allow requested quantity to exceed allocated quantity on backordered orders. Fix one meaning for a reservation record — overall request or individual attempt — and keep it consistent.
 
 #### `reservation_allocations`
 
@@ -241,13 +241,13 @@ Requested quantity may exceed allocated quantity when the order is backordered. 
 * `created_at`
 * `updated_at`
 
-One reservation may allocate from multiple locations. Each allocation identifies the stock bucket that was committed.
+Allocate one reservation from multiple locations where the policy permits. Each allocation identifies the stock bucket that was committed.
 
 The sum of active allocations must match the active allocated quantity on the reservation. This is a cross-row invariant, so validate it transactionally and with domain tests.
 
 #### `reservation_events`
 
-Recommended append-only reservation history.
+Append-only reservation history.
 
 * `id` — UUID primary key
 * `reservation_id` — foreign key
@@ -258,7 +258,7 @@ Recommended append-only reservation history.
 * `created_at`
 * `correlation_id` — nullable
 
-This records reservation lifecycle changes separately from the physical stock movement ledger.
+Record reservation lifecycle changes separately from the physical stock movement ledger.
 
 #### `inventory_adjustments`
 
@@ -285,7 +285,7 @@ This records reservation lifecycle changes separately from the physical stock mo
 * `quantity_delta`
 * `notes` — nullable
 
-Posting an adjustment creates stock movements and updates balances atomically. Require approval for configured adjustment types or thresholds.
+Post adjustments by creating stock movements and updating balances atomically. Enforce approval for configured adjustment types and thresholds.
 
 ### 3.3 Sales and fulfilment
 
@@ -305,7 +305,7 @@ Posting an adjustment creates stock movements and updates balances atomically. R
 * `created_at`
 * `updated_at`
 
-Set the creator from the authenticated identity. External callers must not be able to nominate arbitrary internal user IDs.
+Set the creator from the authenticated identity. Reject external callers nominating arbitrary internal user IDs.
 
 #### `order_lines`
 
@@ -320,7 +320,7 @@ Set the creator from the authenticated identity. External callers must not be ab
 * `created_at`
 * `updated_at`
 
-The unit price is a snapshot. Add discounts and tax fields only when their business rules are defined; v1 is not a full accounting or tax engine.
+Snapshot the unit price. Add discounts and tax fields only after defining their business rules. V1 is not an accounting or tax engine.
 
 #### `pick_lists`
 
@@ -344,7 +344,7 @@ The unit price is a snapshot. Add discounts and tax fields only when their busin
 * `created_at`
 * `updated_at`
 
-Picking is not dispatch. Pick confirmation must not reduce physical stock under Stockflow's default policy.
+Picking is not dispatch. Pick confirmation never reduces physical stock.
 
 #### `shipments`
 
@@ -366,7 +366,7 @@ Picking is not dispatch. Pick confirmation must not reduce physical stock under 
 * `quantity`
 * `created_at`
 
-Shipment posting updates fulfilled quantities and stock balances/movements in a single transaction. Cumulative shipped quantity must not exceed the permitted order quantity after cancellation rules are applied.
+Post shipments by updating fulfilled quantities and stock balances/movements in a single transaction. Keep cumulative shipped quantity within the permitted order quantity after applying cancellation rules.
 
 ### 3.4 Procurement
 
@@ -395,7 +395,7 @@ Shipment posting updates fulfilled quantities and stock balances/movements in a 
 * `created_at`
 * `updated_at`
 
-If received totals are stored for performance, update them transactionally and test them against the receipt-line totals.
+Update stored received totals transactionally and test them against the receipt-line totals.
 
 #### `goods_receipts`
 
@@ -426,7 +426,7 @@ Accepted, damaged, and rejected quantities must remain distinguishable.
 
 #### `supplier_returns` and `supplier_return_lines`
 
-Track supplier returns and post the corresponding stock reduction when the return is dispatched or otherwise committed. Link to the original receipt when available.
+Track supplier returns. Post the corresponding stock reduction when the return is dispatched or otherwise committed. Link to the original receipt.
 
 ### 3.5 Transfers
 
@@ -459,11 +459,11 @@ Source and destination warehouses must differ.
 
 #### `transfer_dispatches`, `transfer_dispatch_lines`, `transfer_receipts`, and `transfer_receipt_lines`
 
-Use explicit dispatch and receipt records if a transfer can be split across multiple dispatches or deliveries.
+Use explicit dispatch and receipt records for transfers split across multiple dispatches or deliveries.
 
 Link each line to the relevant source or destination location. At dispatch, reduce source stock and record in-transit quantity. At receipt, reduce in-transit quantity and add accepted or damaged quantities to the destination's appropriate stock bucket.
 
-Do not create destination sellable stock at dispatch.
+Never create destination sellable stock at dispatch.
 
 ### 3.6 Identity, integrations, idempotency, audit, and outbox
 
@@ -471,7 +471,7 @@ Do not create destination sellable stock at dispatch.
 
 Standard identity and role-based access records. Use unique role and permission codes.
 
-If a role assignment is scoped to a warehouse, model that scope explicitly.
+Model warehouse-scoped role assignments explicitly.
 
 #### `user_warehouse_access`
 
@@ -480,7 +480,7 @@ If a role assignment is scoped to a warehouse, model that scope explicitly.
 * `warehouse_id` — foreign key
 * `access_level` or permission relationship
 
-Add uniqueness constraints appropriate to the chosen permission model.
+Add uniqueness constraints for the chosen permission model.
 
 #### `integration_clients`
 
@@ -491,11 +491,11 @@ Add uniqueness constraints appropriate to the chosen permission model.
 * `created_at`
 * `last_used_at` — nullable
 
-Store hashes of API secrets, not raw secrets. Support credential rotation, revocation, and narrowly scoped permissions.
+Store hashes of API secrets, never raw secrets. Enforce credential rotation, revocation, and narrowly scoped permissions.
 
 #### `integration_permissions`
 
-Links integration clients to permitted actions and scopes. Do not grant broad access by default.
+Link integration clients to permitted actions and scopes. Never grant broad access by default.
 
 #### `idempotency_records`
 
@@ -510,7 +510,7 @@ Links integration clients to permitted actions and scopes. Do not grant broad ac
 
 Enforce uniqueness on `(client_scope, idempotency_key)`.
 
-If a key is reused with a different request hash, reject the request. Coordinate idempotency handling and the business operation transactionally so concurrent duplicate requests cannot both perform the operation.
+Reject a reused key carrying a different request hash. Coordinate idempotency handling and the business operation transactionally so concurrent duplicate requests cannot both perform the operation.
 
 #### `audit_events`
 
@@ -523,7 +523,7 @@ If a key is reused with a different request hash, reject the request. Coordinate
 * `before_data` and `after_data` as JSONB where justified
 * `reason` — nullable
 
-Avoid storing secrets or unnecessary personal data in snapshots. Restrict update and delete access.
+Do not store secrets or unnecessary personal data in snapshots. Restrict update and delete access.
 
 #### `outbox_events`
 
@@ -539,11 +539,11 @@ Avoid storing secrets or unnecessary personal data in snapshots. Restrict update
 
 Insert the outbox event in the same transaction as the business change. A background publisher sends events and records publication attempts.
 
-Delivery is at-least-once; consumers must tolerate duplicate events.
+Deliver at-least-once. Tolerate duplicate events in every consumer.
 
 ## 4. Important constraints and indexes
 
-At minimum, consider:
+At minimum, implement:
 
 * Unique product SKUs and barcodes
 * Unique warehouse codes and location codes within each warehouse
@@ -560,9 +560,9 @@ At minimum, consider:
 * Audit events indexed by `(resource_type, resource_id, occurred_at)`
 * Unpublished outbox events indexed by publication state and retry time
 
-Use partial indexes for active reservations or unpublished outbox events when query patterns justify them.
+Use partial indexes for active reservations and unpublished outbox events.
 
-Validate indexes against realistic data and query plans. Avoid indexing every field without evidence that it improves performance.
+Validate indexes against realistic data and query plans. Do not index fields without evidence of a query benefit.
 
 ## 5. Transaction boundaries
 
@@ -591,7 +591,7 @@ Within one transaction:
 5. Record expiration events.
 6. Commit.
 
-The process must remain safe if multiple workers attempt to expire the same reservation. Expiry does not cancel the sales order.
+Keep expiry safe under concurrent workers. Never cancel the sales order on expiry.
 
 ### 5.3 Receive goods
 
@@ -618,7 +618,7 @@ Within one transaction:
 6. Write audit/outbox events and the idempotency result.
 7. Commit.
 
-Define how undispatched reservations are retained or released. Never deduct the same shipment twice.
+Define retention or release of undispatched reservations. Never deduct the same shipment twice.
 
 ### 5.5 Dispatch and receive transfer
 

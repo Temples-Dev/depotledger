@@ -1,6 +1,6 @@
-# Stockflow — Architecture Overview
+# depotledger — Architecture Overview
 
-**Status:** Draft
+**Status:** Approved
 **Version:** 1.0
 **Architecture style:** Modular monolith
 **Backend:** Django + Django REST Framework
@@ -11,7 +11,7 @@
 
 ## 1. Purpose
 
-Stockflow is an inventory and fulfilment platform designed for wholesale and distribution businesses operating across multiple warehouses.
+depotledger is an inventory and fulfilment platform designed for wholesale and distribution businesses operating across multiple warehouses.
 
 The system manages the lifecycle of inventory, from procurement and receiving through storage, reservation, order fulfilment, dispatch, delivery, transfers, and returns.
 
@@ -21,7 +21,7 @@ It serves as the architectural reference for implementation.
 
 ## 2. Architectural Goals
 
-Stockflow must:
+depotledger must:
 
 1. Maintain accurate inventory quantities across multiple warehouses.
 2. Prevent overselling and conflicting inventory operations under concurrent requests.
@@ -36,15 +36,15 @@ Stockflow must:
 
 * **Consistency:** Inventory-changing operations must be transactional.
 * **Traceability:** Physical stock changes must have corresponding ledger records.
-* **Security:** Access must be controlled by role, permission, and warehouse scope where applicable.
+* **Security:** Access must be controlled by role, permission, and warehouse scope.
 * **Reliability:** Failed asynchronous jobs and external integrations must be recoverable.
 * **Maintainability:** Business rules must live in domain services rather than being scattered across API handlers.
 * **Testability:** Critical inventory rules must be testable independently of the web interface.
-* **Extensibility:** New integrations and business capabilities should fit into existing module boundaries.
+* **Extensibility:** New integrations and business capabilities must fit into existing module boundaries.
 
 ## 3. System Context
 
-Stockflow is initially a single-company platform supporting multiple warehouses. Company-wide configuration and catalogue data are shared across those warehouses.
+depotledger is initially a single-company platform supporting multiple warehouses. Company-wide configuration and catalogue data are shared across those warehouses.
 
 The system interacts with four primary groups:
 
@@ -92,9 +92,9 @@ External systems do not receive direct database access. All supported operations
 External Systems -------- HTTPS / JSON -------- API Application
 ```
 
-This is a logical view, not a requirement to deploy every component as a separate service.
+This is the logical view. Deploy the Django application as one deployable unit; run background workers as separate processes.
 
-In the initial deployment, the Django application can run as one deployable application, with background workers running as separate processes when needed.
+In the initial deployment, run the Django application as one deployable application, with background workers as separate processes.
 
 ## 5. Technology Stack
 
@@ -113,7 +113,7 @@ In the initial deployment, the Django application can run as one deployable appl
 | Automated testing | pytest / Django testing tools | Unit, integration, and API tests      |
 | Deployment        | Docker                        | Reproducible application environments |
 
-Technology choices may be revised through an explicit architecture decision, rather than changed informally across implementation.
+Revise technology choices only through an explicit architecture decision. Do not change them informally across implementation.
 
 Redis is not the authoritative inventory store. PostgreSQL remains the source of truth for stock quantities, reservations, orders, and movement records.
 
@@ -123,7 +123,7 @@ The backend follows a modular monolith architecture.
 
 A modular monolith is one application with clearly defined internal modules, ownership rules, and dependencies. It avoids the operational complexity of microservices while preserving boundaries that make later evolution possible.
 
-### 6.1 Proposed backend structure
+### 6.1 Backend structure
 
 ```text
 backend/
@@ -153,7 +153,7 @@ backend/
 └── tests/
 ```
 
-This is the proposed logical organization. Exact package names and whether some modules are separate Django applications can be finalized during project setup.
+Implement this logical organization. Finalize exact package names and Django application boundaries during project setup.
 
 ### 6.2 Responsibilities
 
@@ -251,7 +251,7 @@ PostgreSQL is the authoritative data store.
 | Audit events                                | Audit                                 |
 | Outbox events                               | Platform / integration infrastructure |
 
-The final placement of shared infrastructure models may vary, but their ownership must remain explicit.
+Keep ownership of shared infrastructure models explicit regardless of their final placement.
 
 ### 7.2 Stock balance and movement ledger
 
@@ -271,7 +271,7 @@ Availability must also account for stock status and warehouse/location rules. Da
 
 Operations that modify related inventory and business records must execute within appropriate database transactions.
 
-For example, dispatching an order may need to:
+For example, dispatching an order executes the following steps:
 
 1. Validate the shipment and its quantities.
 2. Verify that the inventory allocation is still valid.
@@ -283,7 +283,7 @@ For example, dispatching an order may need to:
 
 These operations must not leave the system in a partially committed business state.
 
-The exact transaction boundaries will be specified in the relevant service implementations and lifecycle documentation.
+Specify the exact transaction boundaries in the relevant service implementations and lifecycle documentation.
 
 ## 8. Request and Processing Flows
 
@@ -298,7 +298,7 @@ The exact transaction boundaries will be specified in the relevant service imple
 7. The API returns a structured response.
 8. The frontend updates the displayed state.
 
-The frontend may improve usability through validation, but the backend remains responsible for enforcing business rules.
+The frontend must improve usability through validation, and the backend remains responsible for enforcing business rules.
 
 ### 8.2 External order submission
 
@@ -314,7 +314,7 @@ Repeated submissions using the same valid idempotency key and equivalent request
 
 ### 8.3 Asynchronous processing
 
-Some work should happen outside the original request, including:
+Move the following work outside the original request, including:
 
 * Sending notifications.
 * Delivering integration webhooks.
@@ -335,7 +335,7 @@ Inventory correctness is a primary architectural requirement.
 * Use database transactions for multi-record inventory operations.
 * Lock relevant stock balance rows or use an equivalent safe conditional-update strategy.
 * Validate stock availability inside the transaction, not only before it.
-* Enforce non-negative quantity constraints where applicable.
+* Enforce non-negative quantity constraints on every reservable bucket.
 * Use idempotency for operations that may be retried.
 * Prevent duplicate stock movements for the same committed business operation.
 * Use explicit rules for reservation expiry and release.
@@ -346,11 +346,11 @@ Inventory correctness is a primary architectural requirement.
 
 Stock balances must be changed only through Inventory-owned operations.
 
-Manual adjustments must record an authorized reason, quantities, affected stock, and audit information. The implementation should preserve a traceable link between each committed movement and the business operation that caused it.
+Manual adjustments must record an authorized reason, quantities, affected stock, and audit information. The implementation must preserve a traceable link between each committed movement and the business operation that caused it.
 
 ### 9.3 Reconciliation
 
-The system should provide checks that compare stock balances against the sum of applicable committed movement records.
+The system must provide checks that compare stock balances against the sum of applicable committed movement records.
 
 Reconciliation must identify discrepancies for investigation. It must not silently overwrite the ledger or automatically invent corrective movements.
 
@@ -374,7 +374,7 @@ Example resource paths:
 /api/v1/shipments/
 ```
 
-These are illustrative routes, not the finalized API contract.
+Implement these routes as the initial API contract.
 
 API conventions must define:
 
@@ -388,13 +388,13 @@ API conventions must define:
 * Rate limiting for external clients.
 * OpenAPI documentation.
 
-The API layer must remain thin. It should handle transport concerns and delegate business operations to domain services.
+The API layer must remain thin. It must handle transport concerns and delegate business operations to domain services.
 
 ## 11. Frontend Architecture
 
 The frontend is a React and TypeScript application organized by business feature.
 
-Proposed structure:
+Structure:
 
 ```text
 frontend/
@@ -417,7 +417,7 @@ frontend/
 └── package.json
 ```
 
-The frontend should use reusable components and feature-specific screens.
+The frontend must use reusable components and feature-specific screens.
 
 Responsibilities include:
 
@@ -430,7 +430,7 @@ Responsibilities include:
 
 The frontend must not be treated as a security boundary. Hiding an action in the UI does not replace backend authorization.
 
-API types should be generated from or kept consistent with the OpenAPI contract where practical.
+API types must be generated from or kept consistent with the OpenAPI contract.
 
 ## 12. Security Architecture
 
@@ -453,7 +453,7 @@ External integration clients must receive only the scopes and operations require
 
 ## 13. Deployment Architecture
 
-The initial deployment may use Docker-based services:
+The initial deployment uses Docker-based services:
 
 ```text
 Deployment Environment
@@ -477,7 +477,7 @@ Deployment Environment
     └── Background task broker
 ```
 
-The frontend may be served independently or through a web server in front of the API.
+Serve the frontend independently or through a web server in front of the API.
 
 Production deployment must account for:
 
@@ -491,11 +491,11 @@ Production deployment must account for:
 * Worker retry and failure handling.
 * Database and queue persistence requirements.
 
-The development environment should be reproducible and documented before production deployment is introduced.
+The development environment must be reproducible and documented before production deployment is introduced.
 
 ## 14. Testing Strategy
 
-Testing should be layered.
+Apply layered testing.
 
 **Unit tests**
 
@@ -542,7 +542,7 @@ Critical inventory tests must verify both the resulting balances and the corresp
 
 The following rules apply unless changed through a documented architecture decision:
 
-* Stockflow starts as a modular monolith.
+* depotledger starts as a modular monolith.
 * PostgreSQL is the authoritative data store.
 * Inventory is the only module allowed to commit physical stock changes.
 * Physical stock movement records are immutable.
@@ -553,11 +553,11 @@ The following rules apply unless changed through a documented architecture decis
 * External events must be delivered reliably and tolerate duplicate processing.
 * Monetary amounts use exact decimal representations.
 * Values in different currencies must not be combined without an explicit conversion policy.
-* No microservices should be introduced without a demonstrated need.
+* No microservices must be introduced without a demonstrated need.
 
 ## 16. Initial Implementation Order
 
-The architecture should be implemented incrementally.
+Implement the architecture incrementally.
 
 ### Phase 1 — Foundation
 
@@ -606,7 +606,7 @@ The architecture should be implemented incrementally.
 * Audit and reporting.
 * Monitoring, backups, and deployment hardening.
 
-The phases describe implementation dependencies, not a promise that every feature will be delivered before the next phase begins. Critical architectural rules and tests should be established early.
+The phases define implementation dependencies, not a promise that every feature will be delivered before the next phase begins. Critical architectural rules and tests must be established early.
 
 ## 17. Open Architecture Decisions
 
@@ -623,7 +623,7 @@ The following require explicit decisions before their dependent features are fin
 9. Whether external integrations use polling, webhooks, or both.
 10. The first production deployment and backup strategy.
 
-These decisions should be recorded in architecture decision records when finalized.
+Record these decisions in architecture decision records when finalized.
 
 ## 18. Definition of Architecture Readiness
 

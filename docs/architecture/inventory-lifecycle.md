@@ -1,11 +1,11 @@
-# Stockflow Inventory Lifecycle and Invariants
+# depotledger — Inventory Lifecycle and Invariants
 
-* **Status:** Proposed
-* **Version:** 0.1
+* **Status:** Approved
+* **Version:** 1.0
 
 ## 1. Purpose
 
-This document defines how Stockflow changes inventory in response to reservations, receiving, dispatch, transfers, returns, and adjustments.
+This document defines how depotledger changes inventory in response to reservations, receiving, dispatch, transfers, returns, and adjustments.
 
 It supplements the domain model and database design and establishes the behavior that implementation and automated tests must enforce.
 
@@ -64,7 +64,7 @@ For each order line:
 
 `backordered_qty = max(0, ordered_qty - cancelled_qty - fulfilled_qty - active_allocated_qty)`
 
-These values should be derived from authoritative order and reservation/allocation records, or maintained as transactional projections with reconciliation tests.
+These values must be derived from authoritative order and reservation/allocation records, or maintained as transactional projections with reconciliation tests.
 
 ### Example
 
@@ -85,7 +85,7 @@ A partial shipment consumes only the reservation/allocation associated with the 
 
 ## 6. Dispatch commit point
 
-Under Stockflow's default policy, picking and packing do not reduce physical stock. Stock is deducted when dispatch is committed.
+Under depotledger's default policy, picking and packing do not reduce physical stock. Stock is deducted when dispatch is committed.
 
 For a dispatched quantity:
 
@@ -166,7 +166,7 @@ An inventory adjustment must include:
 * Approval when required by policy
 * Corresponding immutable stock movement when posted
 
-Never silently overwrite a balance to correct a discrepancy. Record a compensating movement and preserve the original history.
+Never silently overwrite a balance. Record a compensating movement and preserve the original history.
 
 ## 10. Transaction and concurrency rules
 
@@ -180,13 +180,13 @@ Every stock-changing command must:
 6. Write the business record, balance changes, movement or reservation events, audit entry, and outbox event as applicable.
 7. Commit only if all required writes succeed.
 
-Do not hold database transactions open while calling external services. Publish downstream events through an outbox after the business transaction commits.
+Never hold a database transaction open across an external service call. Publish downstream events through the outbox after the business transaction commits.
 
 ### 10.1 Preventing overselling
 
-A read that reports sufficient stock is not enough. Another request may reserve the same stock before the first request commits.
+Never trust a pre-transaction availability read. Another request reserves the same stock before the first request commits.
 
-Use `select_for_update()` or an atomic conditional update so that the availability check and reservation update are serialized. If stock is no longer available when the operation obtains its lock, allocate only the remaining available quantity or return the appropriate business result.
+Use `select_for_update()` or an atomic conditional update so that the availability check and reservation update are serialized. When stock is gone at lock time, allocate only the remaining available quantity or return the defined business result.
 
 ### 10.2 Preventing duplicate effects
 
@@ -215,7 +215,7 @@ The following scenarios must be covered by automated tests:
 
 ## 12. Reconciliation
 
-Provide a management command or internal operational task that:
+Provide a management command that:
 
 1. Reconstructs or verifies physical balances from movement history using the defined movement semantics.
 2. Compares computed balances with stored balances.
@@ -225,6 +225,6 @@ Provide a management command or internal operational task that:
 
 Physical stock reconciliation and reservation reconciliation must be separate because reservations affect reserved availability but not physical on-hand quantity.
 
-Opening inventory must be represented through explicit opening-stock movements so that physical balance reconstruction has a known starting point.
+Represent opening inventory through explicit opening-stock movements so physical balance reconstruction starts from a known point.
 
-Any automated correction should require a deliberate, auditable process rather than silently changing balances.
+Run any automated correction through a deliberate, auditable process. Never silently change balances.
