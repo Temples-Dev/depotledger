@@ -1,0 +1,43 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+db.sqlite3
+staticfiles/
+media/
+
+# Node / React / Vite
+node_modules/
+dist/
+build/
+.vite/
+*.local
+
+# PostgreSQL / Docker
+postgres-data/
+*.dump
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# Logs
+*.log
+logs/
