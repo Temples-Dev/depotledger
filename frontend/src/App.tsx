@@ -1,10 +1,20 @@
+import * as Tabs from "@radix-ui/react-tabs";
 import { useEffect, useState } from "react";
 import { fetchHealth, type HealthStatus } from "./lib/api";
+import { cn } from "./lib/utils";
 
 const SECTIONS = ["Dashboard", "Orders", "Inventory", "Procurement"] as const;
+type Section = (typeof SECTIONS)[number];
+
+const SECTION_COPY: Record<Section, string> = {
+  Dashboard: "Operational summaries land here in M10, backed by reliable backend data.",
+  Orders: "Sales order management lands here in M7: demand, allocation, and fulfilment progress.",
+  Inventory: "Balances, movement history, and availability views land here in M4–M5.",
+  Procurement: "Purchase orders and receiving screens land here in M6.",
+};
 
 export default function App() {
-  const [active, setActive] = useState<(typeof SECTIONS)[number]>("Dashboard");
+  const [active, setActive] = useState<Section>("Dashboard");
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
 
@@ -31,31 +41,34 @@ export default function App() {
               : (healthError ?? "Connecting to API…")}
           </p>
         </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 px-6 pb-3">
+      </header>
+      <Tabs.Root
+        value={active}
+        onValueChange={(value) => setActive(value as Section)}
+        className="mx-auto max-w-6xl px-6 py-6"
+      >
+        <Tabs.List aria-label="Operational sections" className="flex gap-1">
           {SECTIONS.map((section) => (
-            <button
+            <Tabs.Trigger
               key={section}
-              type="button"
-              onClick={() => setActive(section)}
-              aria-pressed={active === section}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                active === section
-                  ? "bg-zinc-900 text-white"
-                  : "text-zinc-600 hover:bg-zinc-100"
-              }`}
+              value={section}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900",
+                "data-[state=active]:bg-zinc-900 data-[state=active]:text-white",
+              )}
             >
               {section}
-            </button>
+            </Tabs.Trigger>
           ))}
-        </nav>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <h2 className="text-lg font-medium">{active}</h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          {active} workflows land here in M10. Domain screens follow the backend
-          milestones — catalogue and warehouses first.
-        </p>
-      </main>
+        </Tabs.List>
+        {SECTIONS.map((section) => (
+          <Tabs.Content key={section} value={section} className="py-6">
+            <h2 className="text-lg font-medium">{section}</h2>
+            <p className="mt-2 text-sm text-zinc-600">{SECTION_COPY[section]}</p>
+          </Tabs.Content>
+        ))}
+      </Tabs.Root>
     </div>
   );
 }
