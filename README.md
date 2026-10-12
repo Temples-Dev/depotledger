@@ -34,26 +34,42 @@ Out of scope for v1: general ledger / accounting, payroll, manufacturing, fleet 
 
 ## How to run
 
-Implementation starts at Phase 1 (see architecture overview). Until the backend/frontend scaffolds land, there is nothing to run yet.
+Prerequisites: Docker + Docker Compose, or Python 3.13 with `uv` and Node 22 with `pnpm` for local work.
 
-Planned layout:
-
-```text
-depotledger/
-├── backend/    # Django + DRF (config/, apps/, common/)
-├── frontend/   # React + TS + Vite
-├── docs/architecture/
-├── docker-compose.yml      # planned: api, worker, postgres, redis
-└── README.md
-```
-
-Planned quickstart (once scaffolded):
+### Full stack (recommended)
 
 ```bash
+cp .env.example .env
 docker compose up --build
-# api: http://localhost:8000/api/v1/
 # web: http://localhost:5173/
+# api: http://localhost:8000/api/v1/health/
 ```
+
+Services: `web` (React dev server), `api` (Django), `worker` (Celery),
+`db` (PostgreSQL 17), `redis` (broker).
+
+### Backend only
+
+```bash
+cd backend
+uv venv && uv pip install -r requirements-dev.txt
+python manage.py migrate
+python manage.py runserver
+pytest            # foundation tests
+ruff check . && ruff format --check .
+```
+
+### Frontend only
+
+```bash
+cd frontend
+pnpm install
+pnpm run dev       # proxied to the API at localhost:8000
+pnpm test
+pnpm run build
+```
+
+Set `VITE_API_URL` to point the web app at a non-local API.
 
 ## Core rules
 
