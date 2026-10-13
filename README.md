@@ -52,7 +52,7 @@ Services: `web` (React dev server), `api` (Django), `worker` (Celery),
 
 ```bash
 cd backend
-uv venv && uv pip install -r requirements-dev.txt
+uv venv && uv pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 pytest            # foundation tests
