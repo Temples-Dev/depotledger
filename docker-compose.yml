@@ -25,6 +25,7 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
+      DB_ENGINE: django.db.backends.postgresql
       DB_HOST: db
       DB_NAME: ${DB_NAME:-depotledger}
       DB_USER: ${DB_USER:-postgres}
@@ -43,6 +44,7 @@ services:
     command: celery -A config worker --loglevel=info
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
+      DB_ENGINE: django.db.backends.postgresql
       DB_HOST: db
       DB_NAME: ${DB_NAME:-depotledger}
       DB_USER: ${DB_USER:-postgres}
